@@ -21,17 +21,38 @@ jobs:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
-          # script: |
-          #   set -e
-          #   cd /opt/qwen-vps-inference
-
-          #   git fetch origin main
-          #   git checkout -B main origin/main
-
-          #   docker compose -f compose.yaml up -d
-          #   docker compose -f compose.yaml ps
           script: |
-            whoami
-            hostname
-            docker --version
-            docker compose version
+            set -e
+
+            cd /opt/qwen-vps-inference
+
+            echo "Updating repository..."
+            git fetch origin main
+            git checkout -B main origin/main
+
+            echo "Validating Docker Compose..."
+            docker compose config -q
+
+            echo "Starting multi-model inference server..."
+            docker compose up -d
+
+            echo "Checking containers..."
+            docker compose ps
+
+            echo "Checking model router health..."
+            for i in $(seq 1 30); do
+              if curl -fsS http://127.0.0.1:8080/health; then
+                echo "Inference server is healthy"
+                exit 0
+              fi
+              sleep 2
+            done
+
+            echo "Health check failed"
+            docker compose logs --tail=50
+            exit 1
+          # script: |
+          #   whoami
+          #   hostname
+          #   docker --version
+          #   docker compose version
